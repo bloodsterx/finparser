@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# pytest
+.pytest_cache/
+
+# Cached LlamaParse output
+parsed/
+
+# Claude Code
+.claude/
+
+# Test PDFs
+test.pdf
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated output
+*.xlsx

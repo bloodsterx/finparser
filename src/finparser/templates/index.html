@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>finparser</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f1f1;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 32px 0 8px;
+      font-size: 28px;
+      font-weight: 600;
+    }
+
+    .subtitle {
+      color: #888;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    /* --- API Keys --- */
+    .keys-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .keys-bar input {
+      padding: 8px 14px;
+      border: 1px solid #d5d5d5;
+      border-radius: 8px;
+      font-size: 13px;
+      width: 280px;
+      background: white;
+    }
+
+    .keys-bar input:focus {
+      outline: none;
+      border-color: #b08080;
+    }
+
+    /* --- Upload --- */
+    .upload-zone {
+      border: 2px dashed #ccc;
+      border-radius: 16px;
+      padding: 40px 60px;
+      text-align: center;
+      cursor: pointer;
+      background: white;
+      transition: border-color 0.2s;
+      margin-bottom: 28px;
+    }
+
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: #b08080;
+    }
+
+    .upload-zone p { color: #888; font-size: 15px; }
+    .upload-zone .icon { font-size: 36px; margin-bottom: 8px; }
+
+    /* --- Main layout --- */
+    .workspace {
+      display: none;
+      width: 100%;
+      max-width: 1100px;
+      gap: 40px;
+      padding: 0 24px;
+    }
+
+    .workspace.active { display: flex; }
+
+    /* Left: PDF preview + nav */
+    .left-panel {
+      flex: 0 0 460px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .pdf-card {
+      width: 460px;
+      height: 540px;
+      background: white;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .pdf-card canvas {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .pdf-card .placeholder {
+      color: #bbb;
+      font-size: 22px;
+      font-weight: 500;
+    }
+
+    .pdf-filename {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #666;
+    }
+
+    /* Dots */
+    .dots {
+      display: flex;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #d9d9d9;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .dot.active { background: #404040; }
+
+    /* Nav arrows */
+    .nav-arrows {
+      display: flex;
+      gap: 12px;
+    }
+
+    .nav-btn {
+      width: 100px;
+      height: 52px;
+      background: #e0e0e0;
+      border: none;
+      border-radius: 10px;
+      font-size: 24px;
+      cursor: pointer;
+      color: #555;
+      transition: background 0.15s;
+    }
+
+    .nav-btn:hover { background: #d0d0d0; }
+    .nav-btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* Right: settings */
+    .right-panel {
+      flex: 1;
+      padding-top: 20px;
+    }
+
+    .setting-group {
+      margin-bottom: 28px;
+    }
+
+    .setting-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #444;
+    }
+
+    .setting-group input, .setting-group select {
+      padding: 10px 14px;
+      border: 1px solid #d5d5d5;
+      border-radius: 8px;
+      font-size: 14px;
+      background: white;
+      width: 100%;
+    }
+
+    .setting-group input:focus, .setting-group select:focus {
+      outline: none;
+      border-color: #b08080;
+    }
+
+    .row { display: flex; gap: 16px; }
+    .row > .setting-group { flex: 1; }
+
+    .xor-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .xor-toggle button {
+      padding: 6px 16px;
+      border: 1px solid #d5d5d5;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+
+    .xor-toggle button.active {
+      background: #404040;
+      color: white;
+      border-color: #404040;
+    }
+
+    .page-mode { display: none; }
+    .page-mode.active { display: block; }
+
+    /* Parse button */
+    .parse-btn {
+      width: 100%;
+      padding: 16px;
+      background: #404040;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 16px;
+      transition: background 0.15s;
+    }
+
+    .parse-btn:hover { background: #333; }
+    .parse-btn:disabled { opacity: 0.5; cursor: default; }
+
+    /* Status */
+    .status {
+      margin-top: 12px;
+      font-size: 14px;
+      color: #666;
+      min-height: 20px;
+    }
+
+    .status.error { color: #c44; }
+
+    /* Progress bar */
+    .progress-container {
+      display: none;
+      margin-top: 16px;
+    }
+
+    .progress-container.active { display: block; }
+
+    .progress-bar-outer {
+      width: 100%;
+      height: 10px;
+      background: #e8e8e8;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .progress-bar-inner {
+      height: 100%;
+      background: #404040;
+      border-radius: 5px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      font-size: 13px;
+      color: #666;
+    }
+
+    /* Remove PDF button */
+    .remove-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(0,0,0,0.08);
+      color: #666;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .remove-btn:hover { background: rgba(200,50,50,0.15); color: #c44; }
+  </style>
+</head>
+<body>
+
+  <h1>finparser</h1>
+  <p class="subtitle">Financial statement PDFs &rarr; structured Excel workbooks</p>
+
+  <div class="keys-bar">
+    <input type="password" id="llamaKey" placeholder="LlamaParse API key (llx-...)" />
+    <input type="password" id="geminiKey" placeholder="Google AI API key" />
+    <select id="modelSelect" style="padding:8px 14px;border:1px solid #d5d5d5;border-radius:8px;font-size:13px;background:white;">
+      <option value="gemini-2.5-pro" selected>Gemini 2.5 Pro - Recommended</option>
+      <option value="gemini-2.5-flash">Gemini 2.5 Flash - Best for single page extraction </option>
+    </select>
+  </div>
+
+  <div class="upload-zone" id="uploadZone">
+    <div class="icon">&#128196;</div>
+    <p>Drop PDF(s) here or click to upload</p>
+    <input type="file" id="fileInput" multiple accept=".pdf" hidden />
+  </div>
+
+  <div class="workspace" id="workspace">
+    <!-- Left: PDF preview -->
+    <div class="left-panel">
+      <div class="pdf-card" id="pdfCard">
+        <span class="placeholder">PDF HERE</span>
+        <button class="remove-btn" id="removeBtn" title="Remove this PDF">&times;</button>
+      </div>
+      <div class="pdf-filename" id="pdfFilename">—</div>
+      <div class="dots" id="dots"></div>
+      <div class="nav-arrows">
+        <button class="nav-btn" id="prevBtn">&#x276E;</button>
+        <button class="nav-btn" id="nextBtn">&#x276F;</button>
+      </div>
+    </div>
+
+    <!-- Right: per-PDF settings -->
+    <div class="right-panel">
+      <div class="xor-toggle">
+        <button id="modeRange" class="active" onclick="setPageMode('range')">Page Range</button>
+        <button id="modeSpecific" onclick="setPageMode('specific')">Specific Pages</button>
+      </div>
+
+      <div class="page-mode active" id="rangeMode">
+        <div class="row">
+          <div class="setting-group">
+            <label>Starting Page</label>
+            <input type="number" id="startPage" min="1" placeholder="optional" />
+          </div>
+          <div class="setting-group">
+            <label>Ending Page</label>
+            <input type="number" id="endPage" min="1" placeholder="optional" />
+          </div>
+        </div>
+      </div>
+
+      <div class="page-mode" id="specificMode">
+        <div class="setting-group">
+          <label>Page nums (hyphen for range e.g. 1,2-6,9)</label>
+          <input type="text" id="specificPages" placeholder="e.g. 1,2,6-9,15" />
+        </div>
+      </div>
+
+      <button class="parse-btn" id="parseBtn" onclick="runParse()">Parse &amp; Download Excel</button>
+      <div class="progress-container" id="progressContainer">
+        <div class="progress-bar-outer">
+          <div class="progress-bar-inner" id="progressBar"></div>
+        </div>
+        <div class="progress-info">
+          <span id="progressMessage">Starting...</span>
+          <span id="progressPct">0%</span>
+        </div>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+<script>
+// State
+let pdfs = [];       // { file: File, settings: {...} }
+let currentIdx = 0;
+
+// --- Upload handling ---
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  addFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => { addFiles(fileInput.files); fileInput.value = ''; });
+
+function addFiles(fileList) {
+  for (const f of fileList) {
+    if (f.type === 'application/pdf') {
+      pdfs.push({
+        file: f,
+        settings: { mode: 'range', start_page: null, end_page: null, specific_pages: null }
+      });
+    }
+  }
+  if (pdfs.length > 0) {
+    currentIdx = pdfs.length - 1;
+    showWorkspace();
+  }
+}
+
+function showWorkspace() {
+  document.getElementById('workspace').classList.add('active');
+  renderCarousel();
+}
+
+// --- Carousel ---
+function renderCarousel() {
+  if (pdfs.length === 0) {
+    document.getElementById('workspace').classList.remove('active');
+    return;
+  }
+  if (currentIdx >= pdfs.length) currentIdx = pdfs.length - 1;
+
+  const pdf = pdfs[currentIdx];
+
+  // Filename
+  document.getElementById('pdfFilename').textContent = pdf.file.name;
+
+  // Dots
+  const dotsEl = document.getElementById('dots');
+  dotsEl.innerHTML = '';
+  pdfs.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === currentIdx ? ' active' : '');
+    d.onclick = () => { saveCurrentSettings(); currentIdx = i; renderCarousel(); };
+    dotsEl.appendChild(d);
+  });
+
+  // Nav
+  document.getElementById('prevBtn').disabled = currentIdx === 0;
+  document.getElementById('nextBtn').disabled = currentIdx === pdfs.length - 1;
+
+  // Settings
+  const s = pdf.settings;
+  setPageMode(s.mode, false);
+  document.getElementById('startPage').value = s.start_page ?? '';
+  document.getElementById('endPage').value = s.end_page ?? '';
+  document.getElementById('specificPages').value = s.specific_pages ?? '';
+
+  // PDF preview
+  renderPdfPreview(pdf.file);
+}
+
+async function renderPdfPreview(file) {
+  const card = document.getElementById('pdfCard');
+  // Remove old canvas
+  const old = card.querySelector('canvas');
+  if (old) old.remove();
+
+  if (typeof pdfjsLib === 'undefined') {
+    // pdf.js not loaded yet, show placeholder
+    card.querySelector('.placeholder').style.display = '';
+    return;
+  }
+
+  const arrayBuf = await file.arrayBuffer();
+  try {
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1 });
+    const scale = Math.min(440 / viewport.width, 520 / viewport.height);
+    const sv = page.getViewport({ scale });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = sv.width;
+    canvas.height = sv.height;
+    card.querySelector('.placeholder').style.display = 'none';
+    card.appendChild(canvas);
+
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: sv }).promise;
+  } catch {
+    card.querySelector('.placeholder').style.display = '';
+  }
+}
+
+function saveCurrentSettings() {
+  if (!pdfs[currentIdx]) return;
+  const s = pdfs[currentIdx].settings;
+  const mode = document.getElementById('modeRange').classList.contains('active') ? 'range' : 'specific';
+  s.mode = mode;
+  s.start_page = parseInt(document.getElementById('startPage').value) || null;
+  s.end_page = parseInt(document.getElementById('endPage').value) || null;
+  s.specific_pages = document.getElementById('specificPages').value.trim() || null;
+}
+
+document.getElementById('prevBtn').onclick = () => { saveCurrentSettings(); currentIdx--; renderCarousel(); };
+document.getElementById('nextBtn').onclick = () => { saveCurrentSettings(); currentIdx++; renderCarousel(); };
+
+document.getElementById('removeBtn').onclick = () => {
+  pdfs.splice(currentIdx, 1);
+  if (currentIdx >= pdfs.length) currentIdx = Math.max(0, pdfs.length - 1);
+  renderCarousel();
+};
+
+// --- Page mode XOR toggle ---
+function setPageMode(mode, save = true) {
+  if (save) saveCurrentSettings();
+  document.getElementById('modeRange').classList.toggle('active', mode === 'range');
+  document.getElementById('modeSpecific').classList.toggle('active', mode === 'specific');
+  document.getElementById('rangeMode').classList.toggle('active', mode === 'range');
+  document.getElementById('specificMode').classList.toggle('active', mode === 'specific');
+  if (pdfs[currentIdx] && save) pdfs[currentIdx].settings.mode = mode;
+}
+
+// --- Parse ---
+async function runParse() {
+  saveCurrentSettings();
+
+  const llamaKey = document.getElementById('llamaKey').value.trim();
+  const geminiKey = document.getElementById('geminiKey').value.trim();
+
+  if (!llamaKey || !geminiKey) {
+    setStatus('Please enter both API keys.', true);
+    return;
+  }
+  if (pdfs.length === 0) {
+    setStatus('No PDFs uploaded.', true);
+    return;
+  }
+
+  const btn = document.getElementById('parseBtn');
+  btn.disabled = true;
+  setStatus('');
+  showProgress(0, 'Starting...');
+
+  const formData = new FormData();
+  formData.append('llama_key', llamaKey);
+  formData.append('gemini_key', geminiKey);
+  formData.append('model', document.getElementById('modelSelect').value);
+
+  const settingsArr = [];
+  for (const p of pdfs) {
+    formData.append('pdfs', p.file);
+    const s = p.settings;
+    settingsArr.push({
+      start_page: s.mode === 'range' ? s.start_page : null,
+      end_page: s.mode === 'range' ? s.end_page : null,
+      specific_pages: s.mode === 'specific' ? s.specific_pages : null,
+    });
+  }
+  formData.append('settings', JSON.stringify(settingsArr));
+
+  try {
+    // Step 1: Start the job
+    const startResp = await fetch('/api/parse', { method: 'POST', body: formData });
+    if (!startResp.ok) {
+      const err = await startResp.json();
+      setStatus(err.error || 'Something went wrong.', true);
+      hideProgress();
+      btn.disabled = false;
+      return;
+    }
+
+    const { job_id } = await startResp.json();
+
+    // Step 2: Stream progress via SSE
+    const eventSource = new EventSource('/api/progress/' + job_id);
+
+    await new Promise((resolve, reject) => {
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        showProgress(data.progress, data.message);
+
+        if (data.status === 'done') {
+          eventSource.close();
+          resolve();
+        } else if (data.status === 'error') {
+          eventSource.close();
+          reject(new Error(data.message));
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        reject(new Error('Lost connection to server'));
+      };
+    });
+
+    // Step 3: Download the file
+    showProgress(100, 'Downloading Excel file...');
+    const dlResp = await fetch('/api/download/' + job_id);
+    if (!dlResp.ok) {
+      throw new Error('Download failed');
+    }
+    const blob = await dlResp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'finparser_output.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    showProgress(100, 'Done! Excel file downloaded.');
+  } catch (e) {
+    setStatus(e.message || 'Something went wrong.', true);
+    hideProgress();
+  }
+
+  btn.disabled = false;
+}
+
+function showProgress(pct, msg) {
+  const container = document.getElementById('progressContainer');
+  container.classList.add('active');
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+  document.getElementById('progressMessage').textContent = msg;
+}
+
+function hideProgress() {
+  document.getElementById('progressContainer').classList.remove('active');
+  document.getElementById('progressBar').style.width = '0%';
+}
+
+function setStatus(msg, isError = false) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status' + (isError ? ' error' : '');
+}
+</script>
+
+<!-- PDF.js for preview -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
+<script>
+// Load PDF.js as global
+(async () => {
+  try {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    document.head.appendChild(s);
+  } catch {}
+})();
+</script>
+
+</body>
+</html>
