@@ -309,10 +309,6 @@
   <div class="keys-bar">
     <input type="password" id="llamaKey" placeholder="LlamaParse API key (llx-...)" />
     <input type="password" id="geminiKey" placeholder="Google AI API key" />
-    <select id="modelSelect" style="padding:8px 14px;border:1px solid #d5d5d5;border-radius:8px;font-size:13px;background:white;">
-      <option value="gemini-2.5-pro" selected>Gemini 2.5 Pro - Recommended</option>
-      <option value="gemini-2.5-flash">Gemini 2.5 Flash - Best for single page extraction </option>
-    </select>
   </div>
 
   <div class="upload-zone" id="uploadZone">
@@ -363,6 +359,14 @@
         </div>
       </div>
 
+      <div class="setting-group">
+        <label>Model</label>
+        <select id="modelSelect">
+          <option value="gemini-2.5-pro" selected>Gemini 2.5 Pro</option>
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+        </select>
+      </div>
+
       <button class="parse-btn" id="parseBtn" onclick="runParse()">Parse &amp; Download Excel</button>
       <div class="progress-container" id="progressContainer">
         <div class="progress-bar-outer">
@@ -401,7 +405,7 @@ function addFiles(fileList) {
     if (f.type === 'application/pdf') {
       pdfs.push({
         file: f,
-        settings: { mode: 'range', start_page: null, end_page: null, specific_pages: null }
+        settings: { mode: 'range', start_page: null, end_page: null, specific_pages: null, model: 'gemini-2.5-pro' }
       });
     }
   }
@@ -449,6 +453,7 @@ function renderCarousel() {
   document.getElementById('startPage').value = s.start_page ?? '';
   document.getElementById('endPage').value = s.end_page ?? '';
   document.getElementById('specificPages').value = s.specific_pages ?? '';
+  document.getElementById('modelSelect').value = s.model;
 
   // PDF preview
   renderPdfPreview(pdf.file);
@@ -494,6 +499,7 @@ function saveCurrentSettings() {
   s.start_page = parseInt(document.getElementById('startPage').value) || null;
   s.end_page = parseInt(document.getElementById('endPage').value) || null;
   s.specific_pages = document.getElementById('specificPages').value.trim() || null;
+  s.model = document.getElementById('modelSelect').value;
 }
 
 document.getElementById('prevBtn').onclick = () => { saveCurrentSettings(); currentIdx--; renderCarousel(); };
@@ -539,7 +545,6 @@ async function runParse() {
   const formData = new FormData();
   formData.append('llama_key', llamaKey);
   formData.append('gemini_key', geminiKey);
-  formData.append('model', document.getElementById('modelSelect').value);
 
   const settingsArr = [];
   for (const p of pdfs) {
@@ -549,6 +554,7 @@ async function runParse() {
       start_page: s.mode === 'range' ? s.start_page : null,
       end_page: s.mode === 'range' ? s.end_page : null,
       specific_pages: s.mode === 'specific' ? s.specific_pages : null,
+      model: s.model,
     });
   }
   formData.append('settings', JSON.stringify(settingsArr));

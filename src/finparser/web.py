@@ -38,7 +38,6 @@ async def index(request: Request):
 async def parse(
     llama_key: str = Form(...),
     gemini_key: str = Form(...),
-    model: str = Form("gemini-2.5-pro"),
     pdfs: list[UploadFile] = File(...),
     settings: str = Form(...),  # JSON string: list of per-PDF settings
 ):
@@ -48,7 +47,8 @@ async def parse(
     {
         "start_page": int | null,
         "end_page": int | null,
-        "specific_pages": str | null
+        "specific_pages": str | null,
+        "model": str
     }
     """
     try:
@@ -75,6 +75,8 @@ async def parse(
             "specific_pages": s.get("specific_pages"),
         })
 
+    models_per_pdf = [s.get("model", "gemini-2.5-pro") for s in pdf_settings]
+
     job_id = str(uuid.uuid4())
     jobs[job_id] = {
         "status": "running",
@@ -85,7 +87,7 @@ async def parse(
     }
 
     asyncio.create_task(
-        _run_pipeline(job_id, uploads, llama_key, gemini_key, model)
+        _run_pipeline(job_id, uploads, llama_key, gemini_key, models_per_pdf)
     )
 
     return JSONResponse({"job_id": job_id})
@@ -143,7 +145,7 @@ async def _run_pipeline(
     uploads: list[dict],
     llama_key: str,
     gemini_key: str,
-    model: str,
+    models_per_pdf: list[str],
 ):
     """Run the full parse pipeline, updating job progress along the way.
 
@@ -209,6 +211,7 @@ async def _run_pipeline(
         # --- Stage 3: Gemini extraction (per-PDF) ---
         extracted = []
         for i, md in enumerate(markdowns):
+            model = models_per_pdf[i] if i < len(models_per_pdf) else "gemini-2.5-pro"
             set_progress(
                 50 + int(30 * i / max(n, 1)),
                 f"Extracting financial data from PDF {i + 1}/{n}...",
