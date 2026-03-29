@@ -71,7 +71,8 @@ def write_workbook(result: ParseResult, output_path: Path) -> Path:
                 value = item.values.get(period)
                 if value is not None:
                     cell = ws.cell(row=row, column=col_idx, value=value)
-                    cell.number_format = NEGATIVE_NUMBER_FORMAT
+                    if isinstance(value, (int, float)):
+                        cell.number_format = NEGATIVE_NUMBER_FORMAT
                     if item.is_total:
                         cell.font = TOTAL_FONT
 

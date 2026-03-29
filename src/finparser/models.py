@@ -17,9 +17,9 @@ class LineItem(BaseModel):
         default=0,
         description="Hierarchy depth: 0=header/section, 1=item, 2=sub-item, etc.",
     )
-    values: dict[str, float | None] = Field(
+    values: dict[str, float | str | None] = Field(
         default_factory=dict,
-        description="Period column header → numeric value, e.g. {'2024': 394328}",
+        description="Column header → value, e.g. {'2024': 394328} or {'Country': 'UK'}",
     )
     is_total: bool = Field(
         default=False,
