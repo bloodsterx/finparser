@@ -299,6 +299,44 @@
     }
 
     .remove-btn:hover { background: rgba(200,50,50,0.15); color: #c44; }
+
+    /* Page navigation overlay */
+    .page-nav {
+      position: absolute;
+      bottom: 12px;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .page-nav-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(0,0,0,0.08);
+      color: #555;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .page-nav-btn:hover { background: rgba(0,0,0,0.15); }
+    .page-nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+    .page-indicator {
+      font-size: 13px;
+      color: #555;
+      background: rgba(255,255,255,0.85);
+      padding: 4px 10px;
+      border-radius: 6px;
+      user-select: none;
+    }
   </style>
 </head>
 <body>
@@ -323,6 +361,11 @@
       <div class="pdf-card" id="pdfCard">
         <span class="placeholder">PDF HERE</span>
         <button class="remove-btn" id="removeBtn" title="Remove this PDF">&times;</button>
+        <div class="page-nav" id="pageNav" style="display:none;">
+          <button class="page-nav-btn" id="pagePrev">&#x276E;</button>
+          <span class="page-indicator" id="pageIndicator">1 / 1</span>
+          <button class="page-nav-btn" id="pageNext">&#x276F;</button>
+        </div>
       </div>
       <div class="pdf-filename" id="pdfFilename">—</div>
       <div class="dots" id="dots"></div>
@@ -383,7 +426,7 @@
 
 <script>
 // State
-let pdfs = [];       // { file: File, settings: {...} }
+let pdfs = [];       // { file: File, settings: {...}, pdfDoc: null, currentPage: 1, totalPages: 0 }
 let currentIdx = 0;
 
 // --- Upload handling ---
@@ -405,7 +448,8 @@ function addFiles(fileList) {
     if (f.type === 'application/pdf') {
       pdfs.push({
         file: f,
-        settings: { mode: 'range', start_page: null, end_page: null, specific_pages: null, model: 'gemini-2.5-pro' }
+        settings: { mode: 'range', start_page: null, end_page: null, specific_pages: null, model: 'gemini-2.5-pro' },
+        pdfDoc: null, currentPage: 1, totalPages: 0,
       });
     }
   }
@@ -456,25 +500,41 @@ function renderCarousel() {
   document.getElementById('modelSelect').value = s.model;
 
   // PDF preview
-  renderPdfPreview(pdf.file);
+  renderPdfPreview(pdf.file, pdf.currentPage);
 }
 
-async function renderPdfPreview(file) {
+async function renderPdfPreview(file, pageNum) {
   const card = document.getElementById('pdfCard');
-  // Remove old canvas
   const old = card.querySelector('canvas');
   if (old) old.remove();
 
+  const pageNav = document.getElementById('pageNav');
+  pageNav.style.display = 'none';
+
   if (typeof pdfjsLib === 'undefined') {
-    // pdf.js not loaded yet, show placeholder
     card.querySelector('.placeholder').style.display = '';
     return;
   }
 
-  const arrayBuf = await file.arrayBuffer();
+  const entry = pdfs[currentIdx];
+
+  // Load PDF document if not cached
+  if (!entry.pdfDoc) {
+    try {
+      const arrayBuf = await file.arrayBuffer();
+      entry.pdfDoc = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+      entry.totalPages = entry.pdfDoc.numPages;
+    } catch {
+      card.querySelector('.placeholder').style.display = '';
+      return;
+    }
+  }
+
+  const pNum = pageNum || entry.currentPage;
+  entry.currentPage = pNum;
+
   try {
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
-    const page = await pdf.getPage(1);
+    const page = await entry.pdfDoc.getPage(pNum);
     const viewport = page.getViewport({ scale: 1 });
     const scale = Math.min(440 / viewport.width, 520 / viewport.height);
     const sv = page.getViewport({ scale });
@@ -486,6 +546,12 @@ async function renderPdfPreview(file) {
     card.appendChild(canvas);
 
     await page.render({ canvasContext: canvas.getContext('2d'), viewport: sv }).promise;
+
+    // Update page nav
+    pageNav.style.display = 'flex';
+    document.getElementById('pageIndicator').textContent = `${pNum} / ${entry.totalPages}`;
+    document.getElementById('pagePrev').disabled = pNum <= 1;
+    document.getElementById('pageNext').disabled = pNum >= entry.totalPages;
   } catch {
     card.querySelector('.placeholder').style.display = '';
   }
@@ -504,6 +570,15 @@ function saveCurrentSettings() {
 
 document.getElementById('prevBtn').onclick = () => { saveCurrentSettings(); currentIdx--; renderCarousel(); };
 document.getElementById('nextBtn').onclick = () => { saveCurrentSettings(); currentIdx++; renderCarousel(); };
+
+document.getElementById('pagePrev').onclick = () => {
+  const entry = pdfs[currentIdx];
+  if (entry && entry.currentPage > 1) renderPdfPreview(entry.file, entry.currentPage - 1);
+};
+document.getElementById('pageNext').onclick = () => {
+  const entry = pdfs[currentIdx];
+  if (entry && entry.currentPage < entry.totalPages) renderPdfPreview(entry.file, entry.currentPage + 1);
+};
 
 document.getElementById('removeBtn').onclick = () => {
   pdfs.splice(currentIdx, 1);

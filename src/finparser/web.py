@@ -216,6 +216,8 @@ async def _run_pipeline(
                 50 + int(30 * i / max(n, 1)),
                 f"Extracting financial data from PDF {i + 1}/{n}...",
             )
+
+            # sequential wait - could use asyncio.gather, but im cautious of gemini rate limit
             result = await asyncio.to_thread(extract_single, md, gemini_key, model)
             extracted.append(result)
             set_progress(
